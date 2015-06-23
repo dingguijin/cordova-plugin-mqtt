@@ -32,3 +32,6 @@ mqttPlugin.disconnect(function(){
 
 ## PluginBuilder
 PluginBuilder.java was designed to help to map the src code to <src-file> in the plugin.xml.
+
+## Notification Icon
+You should copy an icon which named 'app_logo.png' to folder 'src/res/drawable/'

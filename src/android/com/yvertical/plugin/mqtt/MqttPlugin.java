@@ -28,8 +28,9 @@ public class MqttPlugin extends CordovaPlugin {
 
 		@Override
 		public void onMessageArrived(MqttMessage message) {
+			
 			if (mMessageArrivedCallbackContext != null) {
-                debug(MqttPlugin.class, "java->onMessageArrived->js");
+				
 				PluginResult result = new PluginResult(
 						Status.OK, message.toString());
 				result.setKeepCallback(true);
@@ -78,13 +79,20 @@ public class MqttPlugin extends CordovaPlugin {
                 String clientHandle = args.getString(1); // clientHandle
 
                 JSONObject options = args.getJSONObject(2); // options
-                int timeout = options.getInt("timeout"); // timeout
-                int keepAliveInterval = options.getInt("keepAliveInterval"); // keepAliveInterval
                 String userName = options.getString("userName"); // username
                 String password = options.getString("password"); // password
+                int timeout = options.has("timeout") ? options.getInt("timeout") : MqttPluginConstants.MQTT_CONFIG_DEFAULT_TIMEOUT; // timeout
+                int keepAliveInterval = options.has("keepAliveInterval") ? options.getInt("keepAliveInterval") : MqttPluginConstants.MQTT_CONFIG_DEFAULT_KEEP_ALIVE_INTERVAL; // keepAliveInterval
+                String notificationTitle = options.has("notificationTitle") ? options.getString("notificationTitle") : MqttPluginConstants.MQTT_CONFIG_DEFAULT_NOTIFICATION_TITLE; //notificationTitle
                 
-				mqttManager.connect(url, clientHandle, timeout,
-						keepAliveInterval, userName, password, DEFAULT);
+				MqttConnectConfig config = new MqttConnectConfig()
+						.setDeviceUuid(clientHandle).setHost(url)
+						.setUserName(userName).setPassword(password)
+						.setTimeout(timeout)
+						.setKeepAliveInterval(keepAliveInterval)
+						.setNotificationTitle(notificationTitle);
+                
+				mqttManager.connect(config, DEFAULT);
             } else if (action
 					.equals(MqttPluginConstants.SET_ON_MESSAGE_ARRIVED_CALLBACK_ACTION)) {
                 mMessageArrivedCallbackContext = callbackContext;

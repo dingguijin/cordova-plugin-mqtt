@@ -17,13 +17,6 @@ public class MqttServiceManager {
 
 	private final Context context;
 	
-	/** current connect host **/
-	private String host;
-	/** current connect device uuid **/
-	private String deviceUuid;
-	/** current connect userName **/
-	private String userName;
-	
 	/** mqtt client **/
 	private MqttAndroidClient client;
 	/** mqtt token **/
@@ -53,6 +46,9 @@ public class MqttServiceManager {
 	
 	/** notification icon **/
 	private int notificationSmallIcon;
+	
+	/** current config **/
+	private MqttConnectConfig mConfig;
 	
 	/**
 	 * mqtt event listener
@@ -126,10 +122,7 @@ public class MqttServiceManager {
 	 * @param userName
 	 * @param password
 	 */
-	public synchronized void connect(final String host,
-			final String deviceUuid, final int timeOut,
-			final int keepAliveInterval, final String userName,
-			final String password, final MqttListener listener) {
+	public synchronized void connect(final MqttConnectConfig config, final MqttListener listener) {
 		
 		if (mStatus == Status.DISCONNECTING) {
 			if (listener != null) {
@@ -139,8 +132,7 @@ public class MqttServiceManager {
 		}
 
 		// assert != null
-		if (host == null || deviceUuid == null || userName == null
-				|| password == null) {
+		if (config == null) {
 			if (listener != null) {
 				listener.onConnectFailure(new Throwable(
 						"host or deviceUuid or username or password can not be empty."));
@@ -149,12 +141,11 @@ public class MqttServiceManager {
 		}
 
 		// already connect
-		if (isConnectedOrConnecting(host, deviceUuid, userName)) {
-			MqttPlugin
-					.debug(this.getClass(),
-							String.format(
-									"mqtt client already connected host:%s, deviceUuid:%s, userName:%s.",
-									host, deviceUuid, userName));
+		if (isConnectedOrConnecting(config)) {
+			MqttPlugin.debug(
+					this.getClass(),
+					String.format("mqtt client already connected %s.",
+							config.toString()));
 			if (listener != null) {
 				listener.onConnectSucc();
 			}
@@ -166,13 +157,11 @@ public class MqttServiceManager {
 			disconnect(false, false, new DisconnectListener() {
 				@Override
 				public void onDisconnectFinish() {
-					safeConnect(host, deviceUuid, timeOut, keepAliveInterval,
-							userName, password, listener);
+					safeConnect(config, listener);
 				}
 			});
 		} else {
-			safeConnect(host, deviceUuid, timeOut, keepAliveInterval, userName,
-					password, listener);
+			safeConnect(config, listener);
 		}
 	}
 
@@ -185,59 +174,37 @@ public class MqttServiceManager {
 	 * @param password
 	 * @param listener
 	 */
-	private void safeConnect(String host, String deviceUuid, int timeOut,
-			int keepAliveInterval, String userName, String password,
+	private void safeConnect(final MqttConnectConfig config,
 			MqttListener listener) {
-		
-		MqttPlugin
-				.debug(this.getClass(), String
-						.format("try to connect url:%s,clientHandle:%s,timeout:%d,keepAliveInterval:%d,userName:%s,password:%s",
-								host, deviceUuid, timeOut, keepAliveInterval,
-								userName, password));
+		MqttPlugin.debug(this.getClass(),
+				String.format("try to connect %s", config.toString()));
 
-		storeClient(host, deviceUuid, timeOut, keepAliveInterval, userName, password);
+		storeClient(config);
 		
 		startPushService();
 
 		MqttConnectOptions conOpt = new MqttConnectOptions();
 		conOpt.setCleanSession(true);
-		conOpt.setConnectionTimeout(timeOut);
-		conOpt.setKeepAliveInterval(keepAliveInterval);
-		conOpt.setUserName(userName);
-		conOpt.setPassword(password.toCharArray());
+		conOpt.setConnectionTimeout(config.getTimeout());
+		conOpt.setKeepAliveInterval(config.getKeepAliveInterval());
+		conOpt.setUserName(config.getUserName());
+		conOpt.setPassword(config.getPassword().toCharArray());
 
-		client = newClient(host, deviceUuid, listener);
-		connect(client, conOpt, deviceUuid, listener);
-	}
-	
-	public void connect(MqttConnectConfig config, MqttListener listener) {
-		if (config == null) {
-			return;
-		}
-
-		connect(config.getHost(), config.getDeviceUuid(), config.getTimeout(),
-				config.getKeepAliveInterval(), config.getUserName(),
-				config.getPassword(), listener);
+		client = newClient(config, listener);
+		connect(client, conOpt, config.getDeviceUuid(), listener);
 	}
 	
 	/**
-	 * check is connected
+	 * is connected or connecting
 	 * 
-	 * @param host like tcp://192.168.0.101:1883
-	 * @param deviceUuid xxxx-xxxx-xxx-xxxx
-	 * @param userName userName
+	 * @param config
 	 * @return
 	 */
-	private boolean isConnectedOrConnecting(String host, String deviceUuid, String userName) {
-        MqttPlugin.debug(this.getClass(), "mStatus: " + mStatus);
-		if (this.client != null && this.host != null && this.deviceUuid != null && this.userName != null) {
-			return this.host.equals(host)
-                && this.deviceUuid.equals(deviceUuid)
-                && this.userName.equals(userName)
-                && (mStatus == Status.CONNECTED || mStatus == Status.CONNECTING);
-		}
-		
-		return false;
+	private boolean isConnectedOrConnecting(MqttConnectConfig config) {
+		MqttPlugin.debug(this.getClass(), "mStatus: " + mStatus);
+		return this.client != null
+				&& config.equals(this.mConfig)
+				&& (mStatus == Status.CONNECTED || mStatus == Status.CONNECTING);
 	}
 	
 	/**
@@ -259,10 +226,7 @@ public class MqttServiceManager {
 	 */
 	public void disconnect(boolean stopPushService, boolean fullyExit, final DisconnectListener listener) {
 		MqttPlugin.debug(this.getClass(), String.format(
-				"disconnect host:%s, deviceUuid:%s, userName:%s.",
-				(host != null ? host : "unknown host."),
-				(deviceUuid != null ? deviceUuid : "unknown deviceUuid."),
-				(userName != null ? userName : "unknown userName")));
+				"disconnect %s.", (mConfig != null ? mConfig.toString() : "unknown host")));
 		
 		publishStatus(Status.DISCONNECTING);
 		
@@ -322,9 +286,7 @@ public class MqttServiceManager {
 	 */
 	private void resetClient() {
 		client = null;
-		host = null;
-		deviceUuid = null;
-		userName = null;
+		this.mConfig = null;
 	}
 	
 	/**
@@ -332,20 +294,19 @@ public class MqttServiceManager {
 	 * @param host
 	 * @param deviceUuid
 	 */
-	private void storeClient(String host, String deviceUuid, int timeout, int keepAliveInterval, String userName, String password) {
-		this.host = host;
-		this.deviceUuid = deviceUuid;
-		this.userName = userName;
+	private void storeClient(MqttConnectConfig config) {
+		this.mConfig = config;
 		
 		SharedPreferences sharedPref = context.getSharedPreferences(MqttPluginConstants.MQTT_PREF_NAME, Context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = sharedPref.edit();
 		
-		editor.putString(MqttPluginConstants.MQTT_CONFIG_HOST, host);
-		editor.putString(MqttPluginConstants.MQTT_CONFIG_DEVICE_UUID, deviceUuid);
-		editor.putInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT, timeout);
-		editor.putInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL, keepAliveInterval);
-		editor.putString(MqttPluginConstants.MQTT_CONFIG_USER_NAME, userName);
-		editor.putString(MqttPluginConstants.MQTT_CONFIG_PASSWORD, password);
+		editor.putString(MqttPluginConstants.MQTT_CONFIG_HOST, config.getHost());
+		editor.putString(MqttPluginConstants.MQTT_CONFIG_DEVICE_UUID, config.getDeviceUuid());
+		editor.putInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT, config.getTimeout());
+		editor.putInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL, config.getKeepAliveInterval());
+		editor.putString(MqttPluginConstants.MQTT_CONFIG_USER_NAME, config.getUserName());
+		editor.putString(MqttPluginConstants.MQTT_CONFIG_PASSWORD, config.getPassword());
+		editor.putString(MqttPluginConstants.MQTT_CONFIG_NOTIFICATION_TITLE, config.getNotificationTitle());
 		
 		editor.commit();
 		
@@ -368,8 +329,8 @@ public class MqttServiceManager {
 	 * @param listener
 	 * @return
 	 */
-	private MqttAndroidClient newClient(String host, String deviceUuid, final MqttListener listener) {
-		client = new MqttAndroidClient(context, host, deviceUuid);
+	private MqttAndroidClient newClient(final MqttConnectConfig config, final MqttListener listener) {
+		client = new MqttAndroidClient(context, config.getHost(), config.getDeviceUuid());
 		client.setCallback(new MqttCallback() {
 
 			@Override
@@ -382,7 +343,7 @@ public class MqttServiceManager {
 					throws Exception {
 				MqttPlugin.debug(MqttServiceManager.class, "messageArrived:" + message.toString());
 				
-				if (!interceptMessage()) {
+				if (!interceptMessage(config)) {
 					if (listener != null) {
 						listener.onMessageArrived(message);
 					}
@@ -464,7 +425,7 @@ public class MqttServiceManager {
 	/**
 	 * intercept message
 	 */
-	private boolean interceptMessage() {
+	private boolean interceptMessage(MqttConnectConfig config) {
 		if (MqttPluginUtils.isInBackground(context)) {
             MqttPlugin.debug(this.getClass(), "Our app is running in background.");
 			
@@ -479,7 +440,7 @@ public class MqttServiceManager {
 			}
 			
 			if (notificationOpenActivity != null && notificationSmallIcon > 0) {
-				MqttPluginUtils.showNotification(context, "title",
+				MqttPluginUtils.showNotification(context, config.getNotificationTitle(),
                                                  "You have unread messages.", notificationSmallIcon, notificationOpenActivity);
 			} else {
 				MqttPlugin.debug(this.getClass(), "get notificationOpenActivity error or get notificationSmallIcon error.");

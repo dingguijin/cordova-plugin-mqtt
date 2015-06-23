@@ -25,11 +25,16 @@ public interface MqttPluginConstants {
 	String MQTT_CONFIG_KEEP_ALIVE_INTERVAL = "keepAliveInterval";
 	String MQTT_CONFIG_USER_NAME = "userName";
 	String MQTT_CONFIG_PASSWORD = "password";
+	String MQTT_CONFIG_NOTIFICATION_TITLE = "notificationTitle";
 	/**
 	 * if exit == true, then will not start service, it represents the user
 	 * fully quit our app; else if exit == true, then will try to start our app when system boot complected, or network became avaliable.
 	 * see {@link SystemStateChangeReceiver}
 	 */
 	String CLIENT_CONFIG_EXIT = "exit";
+	
+	int MQTT_CONFIG_DEFAULT_TIMEOUT = 10;
+	int MQTT_CONFIG_DEFAULT_KEEP_ALIVE_INTERVAL = 20 * 60;
+	String MQTT_CONFIG_DEFAULT_NOTIFICATION_TITLE = "Message";
 	
 }

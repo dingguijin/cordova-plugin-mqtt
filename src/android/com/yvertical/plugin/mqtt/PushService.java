@@ -24,21 +24,9 @@ public class PushService extends Service {
 		MqttPlugin.debug(this.getClass(), "onStartCommand");
 		// 1. auto connect to server
 		
-		// if (intent != null) {
-		// 	String action = intent.getAction();
-
-		// 	if (action != null) {
-		// 		if (action.equals(MqttPluginConstants.ACTION_CONNECT)) {
-		// 			MqttPlugin.debug(this.getClass(), "connect mqtt service ");
-		// 			MqttServiceManager.getInstance(getBaseContext()).connect(
-		// 					readConfig(), MqttPlugin.DEFAULT);
-		// 		}
-		// 	}
-		// }
-
-        MqttPlugin.debug(this.getClass(), "connect mqtt service ");
-        MqttServiceManager.getInstance(getBaseContext()).connect(
-                                                                 readConfig(), MqttPlugin.DEFAULT);
+		MqttPlugin.debug(this.getClass(), "connect mqtt service ");
+		MqttServiceManager.getInstance(getBaseContext()).connect(
+				readConfig(), MqttPlugin.DEFAULT);
 		
 		return START_STICKY;
 	}
@@ -60,8 +48,9 @@ public class PushService extends Service {
 		return new MqttConnectConfig(host, sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_DEVICE_UUID, null), 
 				sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_USER_NAME, null),
 				sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_PASSWORD, null),
-				sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT, 3),
-				sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL, 20 * 60));
+				sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT, MqttPluginConstants.MQTT_CONFIG_DEFAULT_TIMEOUT),
+				sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL, MqttPluginConstants.MQTT_CONFIG_DEFAULT_KEEP_ALIVE_INTERVAL),
+				sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_NOTIFICATION_TITLE, MqttPluginConstants.MQTT_CONFIG_DEFAULT_NOTIFICATION_TITLE));
 	}
 
 	@Override
