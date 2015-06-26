@@ -1,4 +1,7 @@
-## how to use:
+## Feature:
+- Auto Reconnect
+
+## How to use:
 ```
 var host = 192.168.0.101;
 var port = 1883;
@@ -27,6 +30,16 @@ mqttPlugin.connect(url, device_uuid, options, function(message) {
 mqttPlugin.disconnect(function(){
 
 });
+
+```
+
+## API:
+```
+mqttPlugin.connect();
+
+mqttPlugin.setOnMessageArrivedCallback();
+
+mqttPlugin.disconnect();
 
 ```
 

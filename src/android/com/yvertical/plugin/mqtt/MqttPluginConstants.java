@@ -36,5 +36,4 @@ public interface MqttPluginConstants {
 	int MQTT_CONFIG_DEFAULT_TIMEOUT = 10;
 	int MQTT_CONFIG_DEFAULT_KEEP_ALIVE_INTERVAL = 20 * 60;
 	String MQTT_CONFIG_DEFAULT_NOTIFICATION_TITLE = "Message";
-	
 }

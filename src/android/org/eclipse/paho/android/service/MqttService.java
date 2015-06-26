@@ -23,6 +23,8 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.eclipse.paho.client.mqttv3.MqttSecurityException;
 
+import com.yvertical.plugin.mqtt.MqttPlugin;
+
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -274,6 +276,8 @@ public class MqttService extends Service implements MqttTraceHandler {
     if (dataBundle != null) {
       callbackIntent.putExtras(dataBundle);
     }
+    
+    MqttPlugin.debug(this.getClass(), "LocalBroadcastManager---->broadcast---->" + status.name());
     LocalBroadcastManager.getInstance(this).sendBroadcast(callbackIntent);
   }
 

@@ -15,8 +15,12 @@ var mqttPlugin = {
     
     connect: function(url, clientHandle, optJsonObj, successCallback, failCallback) {
         exec(function() {
-            exec(successCallback, "", PLUGIN_NAME, PLUGIN_ACTION.SET_ON_MESSAGE_ARRIVED_CALLBACK, []);            
+            exec(successCallback, "", PLUGIN_NAME, PLUGIN_ACTION.SET_ON_MESSAGE_ARRIVED_CALLBACK, []);
         }, failCallback, PLUGIN_NAME, PLUGIN_ACTION.CONNECT, [url, clientHandle, optJsonObj]);
+    },
+
+    setOnMessageArrivedCallback: function(successCallback) {
+        exec(successCallback, "", PLUGIN_NAME, PLUGIN_ACTION.SET_ON_MESSAGE_ARRIVED_CALLBACK, []);
     },
 
     disconnect: function(callback) {

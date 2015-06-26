@@ -9,6 +9,7 @@ public class MqttConnectConfig {
 	private int timeout;
 	private int keepAliveInterval;
 	private String notificationTitle;
+	private String clientHandle;
 	
 	public MqttConnectConfig(){
 		
@@ -48,6 +49,13 @@ public class MqttConnectConfig {
 	}
 	public int getKeepAliveInterval() {
 		return keepAliveInterval;
+	}
+	
+	public String getClientHandle() {
+		if (clientHandle == null) {
+			clientHandle = host + ":" + deviceUuid + ":" + userName;
+		}
+		return clientHandle;
 	}
 	
 	public MqttConnectConfig setNotificationTitle(String notificationTitle) {

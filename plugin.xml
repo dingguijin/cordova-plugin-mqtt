@@ -85,6 +85,7 @@
         <source-file src="src/android/com/yvertical/plugin/mqtt/SystemStateChangeReceiver.java" target-dir="src/com/yvertical/plugin/mqtt" />
         <source-file src="src/android/com/yvertical/plugin/mqtt/MqttPlugin.java" target-dir="src/com/yvertical/plugin/mqtt" />
         <source-file src="src/android/com/yvertical/plugin/mqtt/MqttPluginUtils.java" target-dir="src/com/yvertical/plugin/mqtt" />
+        <source-file src="src/android/com/yvertical/plugin/mqtt/MqttClient.java" target-dir="src/com/yvertical/plugin/mqtt" />
         <source-file src="src/android/org/eclipse/paho/android/service/AlarmPingSender.java" target-dir="src/org/eclipse/paho/service" />
         <source-file src="src/android/org/eclipse/paho/android/service/DatabaseMessageStore.java" target-dir="src/org/eclipse/paho/service" />
         <source-file src="src/android/org/eclipse/paho/android/service/MessageStore.java" target-dir="src/org/eclipse/paho/service" />

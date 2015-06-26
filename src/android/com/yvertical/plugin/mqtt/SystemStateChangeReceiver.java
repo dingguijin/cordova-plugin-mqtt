@@ -3,9 +3,7 @@ package com.yvertical.plugin.mqtt;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 
 /**
  * 1. listen for system boot
@@ -22,33 +20,18 @@ public class SystemStateChangeReceiver extends BroadcastReceiver {
 		
 		if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
 			MqttPlugin.debug(this.getClass(), "action_boot_complected");
-			if (!isQuit(context)) {
-				execAction(context, MqttPluginConstants.ACTION_CONNECT);
-			}
+			execAction(context, MqttPluginConstants.ACTION_CONNECT);
 		} else if (action.equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
-			if (isNetworkAvaliable(context)) {
+			if (MqttPluginUtils.isNetworkAvaliable(context)) {
 				MqttPlugin.debug(this.getClass(), "action_network_avaliable");
-				if (!isQuit(context)) {
-					execAction(context, MqttPluginConstants.ACTION_CONNECT);
-				}
+				execAction(context, MqttPluginConstants.ACTION_CONNECT);
 			} else {
 				MqttPlugin.debug(this.getClass(), "action_network_unavaliable");
 			}
+		} else if (action.equals(Intent.ACTION_USER_PRESENT)) {
+			MqttPlugin.debug(this.getClass(), "the user is present after device wakes up");
+			execAction(context, MqttPluginConstants.ACTION_CONNECT);
 		}
-	}
-	
-	/**
-	 * is user fully leave our app?
-	 * 
-	 * @return
-	 */
-	private boolean isQuit(Context context) {
-		SharedPreferences sharedPref = context.getSharedPreferences(
-				MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
-		boolean exit = sharedPref.getBoolean(
-				MqttPluginConstants.CLIENT_CONFIG_EXIT, false);
-		MqttPlugin.debug(this.getClass(), "user fully leave our app : " + exit);
-		return exit;
 	}
 	
 	/**
@@ -60,16 +43,5 @@ public class SystemStateChangeReceiver extends BroadcastReceiver {
 		Intent serviceIntent = new Intent(context, PushService.class);
 		serviceIntent.setAction(action);
 		context.startService(serviceIntent);
-	}
-
-	public static boolean isNetworkAvaliable(Context context) {
-		ConnectivityManager connMgr = (ConnectivityManager) context
-				.getSystemService(Context.CONNECTIVITY_SERVICE);
-		NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-		if (networkInfo != null && networkInfo.isConnected()) {
-			return true;
-		} else {
-			return false;
-		}
 	}
 }

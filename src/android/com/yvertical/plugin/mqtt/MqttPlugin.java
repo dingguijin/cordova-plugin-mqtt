@@ -13,7 +13,7 @@ import org.json.JSONObject;
 
 import android.util.Log;
 
-import com.yvertical.plugin.mqtt.MqttServiceManager.MqttListener;
+import com.yvertical.plugin.mqtt.MqttClient.MqttListener;
 
 public class MqttPlugin extends CordovaPlugin {
 	
@@ -30,6 +30,7 @@ public class MqttPlugin extends CordovaPlugin {
 		public void onMessageArrived(MqttMessage message) {
 			
 			if (mMessageArrivedCallbackContext != null) {
+				debug(MqttPlugin.class, "js---->java---->by " + mMessageArrivedCallbackContext.toString());
 				
 				PluginResult result = new PluginResult(
 						Status.OK, message.toString());

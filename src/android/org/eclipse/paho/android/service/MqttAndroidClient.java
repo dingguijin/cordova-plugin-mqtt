@@ -430,7 +430,7 @@ public class MqttAndroidClient extends BroadcastReceiver implements
 					doConnect();
 					
 					//Register receiver to show shoulder tap.
-					registerReceiver(MqttAndroidClient.this);
+//					registerReceiver(MqttAndroidClient.this);
 				}
 
 			});
