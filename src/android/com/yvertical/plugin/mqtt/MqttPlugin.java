@@ -27,15 +27,13 @@ public class MqttPlugin extends CordovaPlugin {
     static MqttListener DEFAULT = new MqttListener() {
 
 		@Override
-		public void onMessageArrived(MqttMessage message) {
-			
+		public void onMessageArrived(MqttMessage message) {			
 			if (mMessageArrivedCallbackContext != null) {
 				debug(MqttPlugin.class, "js---->java---->by " + mMessageArrivedCallbackContext.toString());
 				PluginResult result = new PluginResult(Status.OK, message.toString());
 				result.setKeepCallback(true);
 				mMessageArrivedCallbackContext.sendPluginResult(result);
 			}
-			
 		}
 
 		@Override
@@ -92,8 +90,7 @@ public class MqttPlugin extends CordovaPlugin {
 						.setNotificationTitle(notificationTitle);
                 
 				mqttManager.connect(config, DEFAULT);
-            } else if (action
-					.equals(MqttPluginConstants.SET_ON_MESSAGE_ARRIVED_CALLBACK_ACTION)) {
+            } else if (action.equals(MqttPluginConstants.SET_ON_MESSAGE_ARRIVED_CALLBACK_ACTION)) {
                 mMessageArrivedCallbackContext = callbackContext;
 				PluginResult result = new PluginResult(Status.OK);
 				result.setKeepCallback(true);

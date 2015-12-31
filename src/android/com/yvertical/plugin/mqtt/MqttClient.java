@@ -13,6 +13,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MqttClient {
 	private final Context context;
@@ -324,8 +327,7 @@ public class MqttClient {
 	 * 
 	 */
 	private void fullyExit() {
-		SharedPreferences sharedPref = context.getSharedPreferences(
-                                                                    MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
+		SharedPreferences sharedPref = context.getSharedPreferences(MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
 		sharedPref.edit()
             .putBoolean(MqttPluginConstants.CLIENT_CONFIG_EXIT, true)
             .commit();
@@ -347,8 +349,7 @@ public class MqttClient {
                     
                     @Override
                     public void connectionLost(Throwable cause) {
-                        MqttPlugin.debug(
-                                         MqttServiceManager.class,
+                        MqttPlugin.debug(MqttServiceManager.class,
                                          "connectionLost:"
                                          + (cause != null ? cause.toString()
                                             : "unknown reason"));
@@ -363,7 +364,7 @@ public class MqttClient {
                         MqttPlugin.debug(MqttServiceManager.class,
                                          "messageArrived:" + message.toString());
 
-                        if (!interceptMessage(mConfig)) {
+                        if (!interceptMessage(mConfig, message)) {
                             if (mListener != null) {
                                 mListener.onMessageArrived(message);
                             }
@@ -522,10 +523,9 @@ public class MqttClient {
 	/**
 	 * intercept message
 	 */
-	private boolean interceptMessage(MqttConnectConfig config) {
+	private boolean interceptMessage(MqttConnectConfig config, MqttMessage message) {
 		if (MqttPluginUtils.isInBackground(context)) {
-			MqttPlugin.debug(this.getClass(),
-                             "Our app is running in background.");
+			MqttPlugin.debug(this.getClass(), "Our app is running in background.");
 
 			if (notificationOpenActivity == null) {
 				notificationOpenActivity = MqttPluginUtils
@@ -538,9 +538,22 @@ public class MqttClient {
 			}
 
 			if (notificationOpenActivity != null && notificationSmallIcon > 0) {
-				MqttPluginUtils.showNotification(context,
+				// MqttPluginUtils.showNotification(context,
+                //                                  config.getNotificationTitle(),                                                 
+                //                                  "You have unread messages.", notificationSmallIcon,
+                //                                  notificationOpenActivity);
+                String msg = message1.toString();
+                String title = null;
+                try {
+                    JSONObject json = new JSONObject(msg);
+                    title = json.getString("title");
+                } catch (JSONException e) {
+                    
+                }
+                MqttPluginUtils.showNotification(context,
                                                  config.getNotificationTitle(),
-                                                 "You have unread messages.", notificationSmallIcon,
+                                                 title != null ? title : "",
+                                                 notificationSmallIcon,
                                                  notificationOpenActivity);
 			} else {
 				MqttPlugin

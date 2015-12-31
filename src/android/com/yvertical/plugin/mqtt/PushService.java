@@ -47,8 +47,7 @@ public class PushService extends Service {
                                      sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_PASSWORD, null),
                                      sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT, MqttPluginConstants.MQTT_CONFIG_DEFAULT_TIMEOUT),
                                      sharedPref.getInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL, MqttPluginConstants.MQTT_CONFIG_DEFAULT_KEEP_ALIVE_INTERVAL),
-                                     sharedPref.getString(
-                                                          MqttPluginConstants.MQTT_CONFIG_NOTIFICATION_TITLE,
+                                     sharedPref.getString(MqttPluginConstants.MQTT_CONFIG_NOTIFICATION_TITLE,
                                                           MqttPluginConstants.MQTT_CONFIG_DEFAULT_NOTIFICATION_TITLE));
 	}
 
