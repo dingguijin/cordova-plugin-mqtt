@@ -31,9 +31,7 @@ public class MqttPlugin extends CordovaPlugin {
 			
 			if (mMessageArrivedCallbackContext != null) {
 				debug(MqttPlugin.class, "js---->java---->by " + mMessageArrivedCallbackContext.toString());
-				
-				PluginResult result = new PluginResult(
-						Status.OK, message.toString());
+				PluginResult result = new PluginResult(Status.OK, message.toString());
 				result.setKeepCallback(true);
 				mMessageArrivedCallbackContext.sendPluginResult(result);
 			}

@@ -11,25 +11,12 @@
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
- *    Dave Locke - initial API and implementation and/or initial documentation
+ *    James Sutton - Bug 459142 - WebSocket support for the Java client.
  */
-package org.eclipse.paho.client.mqttv3.internal;
+package org.eclipse.paho.client.mqttv3.internal.websocket;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+public class HandshakeFailedException extends Exception {
 
-import org.eclipse.paho.client.mqttv3.MqttException;
+	private static final long serialVersionUID = 1L;
 
-
-public interface NetworkModule {
-	public void start() throws IOException, MqttException;
-	
-	public InputStream getInputStream() throws IOException;
-	
-	public OutputStream getOutputStream() throws IOException;
-	
-	public void stop() throws IOException;
-
-	public String getServerURI();
 }

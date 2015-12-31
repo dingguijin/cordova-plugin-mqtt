@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2014 IBM Corp.
+ * Copyright (c) 2009, 2015 IBM Corp.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -12,6 +12,9 @@
  *
  * Contributors:
  *    Dave Locke - initial API and implementation and/or initial documentation
+ *    Ian Craggs - per subscription message handlers (bug 466579)
+ *    Ian Craggs - ack control (bug 472172)
+ *    James Sutton - checkForActivity Token (bug 473928)
  */
 package org.eclipse.paho.client.mqttv3.internal;
 
@@ -19,7 +22,9 @@ import java.util.Enumeration;
 import java.util.Properties;
 import java.util.Vector;
 
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttAsyncClient;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClientPersistence;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
@@ -201,19 +206,20 @@ public class ClientComms {
 
 				conState = CONNECTING;
 
-				this.conOptions = options;
+				conOptions = options;
 
-				MqttConnect connect = new MqttConnect(client.getClientId(),
-						options.getMqttVersion(),
-						options.isCleanSession(),
-						options.getKeepAliveInterval(),
-						options.getUserName(),
-						options.getPassword(),
-						options.getWillMessage(),
-						options.getWillDestination());
+                MqttConnect connect = new MqttConnect(client.getClientId(),
+                        conOptions.getMqttVersion(),
+                        conOptions.isCleanSession(),
+                        conOptions.getKeepAliveInterval(),
+                        conOptions.getUserName(),
+                        conOptions.getPassword(),
+                        conOptions.getWillMessage(),
+                        conOptions.getWillDestination());
 
-				this.clientState.setKeepAliveSecs(options.getKeepAliveInterval());
-				this.clientState.setCleanSession(options.isCleanSession());
+                this.clientState.setKeepAliveSecs(conOptions.getKeepAliveInterval());
+                this.clientState.setCleanSession(conOptions.isCleanSession());
+                this.clientState.setMaxInflight(conOptions.getMaxInflight());
 
 				tokenStore.open();
 				ConnectBG conbg = new ConnectBG(this, token, connect);
@@ -317,6 +323,8 @@ public class ClientComms {
 		try {
 			// Clean session handling and tidy up
 			clientState.disconnected(reason);
+			if (clientState.getCleanSession())
+				callback.removeMessageListeners();
 		}catch(Exception ex) {
 			// Ignore as we are shutting down
 		}
@@ -496,6 +504,22 @@ public class ClientComms {
 	public void setCallback(MqttCallback mqttCallback) {
 		this.callback.setCallback(mqttCallback);
 	}
+	
+	public void setManualAcks(boolean manualAcks) {
+		this.callback.setManualAcks(manualAcks);
+	}
+	
+	public void messageArrivedComplete(int messageId, int qos) throws MqttException {
+		this.callback.messageArrivedComplete(messageId, qos);
+	}
+	
+	public void setMessageListener(String topicFilter, IMqttMessageListener messageListener) {
+		this.callback.setMessageListener(topicFilter, messageListener);
+	}
+	
+	public void removeMessageListener(String topicFilter) {
+		this.callback.removeMessageListener(topicFilter);
+	}
 
 	protected MqttTopic getTopic(String topic) {
 		return new MqttTopic(topic, this);
@@ -515,8 +539,13 @@ public class ClientComms {
 	public MqttDeliveryToken[] getPendingDeliveryTokens() {
 		return tokenStore.getOutstandingDelTokens();
 	}
+	
 	protected void deliveryComplete(MqttPublish msg) throws MqttPersistenceException {
 		this.clientState.deliveryComplete(msg);
+	}
+	
+	protected void deliveryComplete(int messageId) throws MqttPersistenceException {
+		this.clientState.deliveryComplete(messageId);
 	}
 
 	public IMqttAsyncClient getClient() {
@@ -655,9 +684,21 @@ public class ClientComms {
 	 * in the last keepalive interval.
 	 */
 	public MqttToken checkForActivity(){
+		return this.checkForActivity(null);
+	}
+	
+	/*
+	 * Check and send a ping if needed and check for ping timeout.
+	 * Need to send a ping if nothing has been sent or received 
+	 * in the last keepalive interval.
+	 * Passes an IMqttActionListener to ClientState.checkForActivity
+	 * so that the callbacks are attached as soon as the token is created
+	 * (Bug 473928) 
+	 */
+	public MqttToken checkForActivity(IMqttActionListener pingCallback){
 		MqttToken token = null;
 		try{
-			token = clientState.checkForActivity();
+			token = clientState.checkForActivity(pingCallback);
 		}catch(MqttException e){
 			handleRunException(e);
 		}catch(Exception e){

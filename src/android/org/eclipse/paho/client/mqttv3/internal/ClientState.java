@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2014 IBM Corp.
+ * Copyright (c) 2009, 2015 IBM Corp.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -12,6 +12,10 @@
  *
  * Contributors:
  *    Dave Locke - initial API and implementation and/or initial documentation
+ *    Ian Craggs - fix duplicate message id (Bug 466853)
+ *    Ian Craggs - ack control (bug 472172)
+ *    James Sutton - Ping Callback (bug 473928)
+ *    Ian Craggs - fix for NPE bug 470718
  */
 package org.eclipse.paho.client.mqttv3.internal;
 
@@ -21,6 +25,7 @@ import java.util.Hashtable;
 import java.util.Properties;
 import java.util.Vector;
 
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.MqttClientPersistence;
 import org.eclipse.paho.client.mqttv3.MqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -94,7 +99,6 @@ public class ClientState {
 	private static final String PERSISTENCE_CONFIRMED_PREFIX = "sc-";
 	private static final String PERSISTENCE_RECEIVED_PREFIX = "r-";
 	
-	private static final int DEFAULT_MAX_INFLIGHT = 10;
 	private static final int MIN_MSG_ID = 1;		// Lowest possible MQTT message ID to use
 	private static final int MAX_MSG_ID = 65535;	// Highest possible MQTT message ID to use
 	private int nextMsgId = MIN_MSG_ID - 1;			// The next available message ID to use
@@ -110,7 +114,7 @@ public class ClientState {
 	private boolean cleanSession;
 	private MqttClientPersistence persistence;
 	
-	private int maxInflight = DEFAULT_MAX_INFLIGHT;	
+	private int maxInflight = 0;	
 	private int actualInFlight = 0;
 	private int inFlightPubRels = 0;
 	
@@ -140,7 +144,6 @@ public class ClientState {
 		log.finer(CLASS_NAME, "<Init>", "" );
 
 		inUseMsgIds = new Hashtable();
-		pendingMessages = new Vector(this.maxInflight);
 		pendingFlows = new Vector();
 		outboundQoS2 = new Hashtable();
 		outboundQoS1 = new Hashtable();
@@ -157,8 +160,12 @@ public class ClientState {
 		
 		restoreState();
 	}
-
-	protected void setKeepAliveSecs(long keepAliveSecs) {
+	
+	protected void setMaxInflight(int maxInflight) {
+        this.maxInflight = maxInflight;
+        pendingMessages = new Vector(this.maxInflight);
+    }
+    protected void setKeepAliveSecs(long keepAliveSecs) {
 		this.keepAlive = keepAliveSecs*1000;
 	}
 	protected long getKeepAlive() {
@@ -166,6 +173,9 @@ public class ClientState {
 	}
 	protected void setCleanSession(boolean cleanSession) {
 		this.cleanSession = cleanSession;
+	}
+	protected boolean getCleanSession() {
+		return this.cleanSession;
 	}
 	
 	private String getSendPersistenceKey(MqttWireMessage message) {
@@ -178,6 +188,10 @@ public class ClientState {
 	
 	private String getReceivedPersistenceKey(MqttWireMessage message) {
 		return PERSISTENCE_RECEIVED_PREFIX + message.getMessageId();
+	}
+	
+	private String getReceivedPersistenceKey(int messageId) {
+		return PERSISTENCE_RECEIVED_PREFIX + messageId;
 	}
 	
 	protected void clearState() throws MqttException {
@@ -526,7 +540,7 @@ public class ClientState {
 	 * 
 	 * @return token of ping command, null if no ping command has been sent.
 	 */
-	public MqttToken checkForActivity() throws MqttException {
+	public MqttToken checkForActivity(IMqttActionListener pingCallback) throws MqttException {
 		final String methodName = "checkForActivity";
 		//@TRACE 616=checkForActivity entered
 		log.fine(CLASS_NAME,methodName,"616", new Object[]{});
@@ -593,6 +607,9 @@ public class ClientState {
                     // pingOutstanding++;  // it will be set after the ping has been written on the wire                                                                                                             
                     // lastPing = time;    // it will be set after the ping has been written on the wire                                                                                                             
                     token = new MqttToken(clientComms.getClient().getClientId());
+                    if(pingCallback != null){
+                    	token.setActionCallback(pingCallback);
+                    }
                     tokenStore.saveToken(token, pingCommand);
                     pendingFlows.insertElementAt(pingCommand, 0);
 
@@ -744,8 +761,8 @@ public class ClientState {
         if (sentBytesCount > 0) {
         	this.lastOutboundActivity = System.currentTimeMillis();
         }
-        // @TRACE 631=sent bytes count={0}                                                                                                                                                                                            
-        log.fine(CLASS_NAME, methodName, "631", new Object[] {
+        // @TRACE 643=sent bytes count={0}                                                                                                                                                                                            
+        log.fine(CLASS_NAME, methodName, "643", new Object[] {
         		 new Integer(sentBytesCount) });
     }
 
@@ -843,7 +860,11 @@ public class ClientState {
 		MqttToken token = tokenStore.getToken(ack);
 		MqttException mex = null;
 
-		if (ack instanceof MqttPubRec) {
+		if (token == null) {
+			// @TRACE 662=no message found for ack id={0}
+			log.fine(CLASS_NAME, methodName, "662", new Object[] {
+					new Integer(ack.getMessageId())});
+		} else if (ack instanceof MqttPubRec) {
 			// Complete the QoS 2 flow. Unlike all other
 			// flows, QoS is a 2 phase flow. The second phase sends a
 			// PUBREL - the operation is not complete until a PUBCOMP
@@ -1013,7 +1034,8 @@ public class ClientState {
 		final String methodName = "notifyResult";
 		// unblock any threads waiting on the token  
 		token.internalTok.markComplete(ack, ex);
-						
+		token.internalTok.notifyComplete();
+		
 		// Let the user know an async operation has completed and then remove the token
 		if (ack != null && ack instanceof MqttAck && !(ack instanceof MqttPubRec)) {
 			//@TRACE 648=key{0}, msg={1}, excep={2}
@@ -1218,6 +1240,16 @@ public class ClientState {
 		
 		persistence.remove(getReceivedPersistenceKey(message));
 		inboundQoS2.remove(new Integer(message.getMessageId()));
+	}
+	
+	protected void deliveryComplete(int messageId) throws MqttPersistenceException {
+		final String methodName = "deliveryComplete";
+
+		//@TRACE 641=remove publish from persistence. key={0}
+		log.fine(CLASS_NAME,methodName,"641", new Object[]{new Integer(messageId)});
+		
+		persistence.remove(getReceivedPersistenceKey(messageId));
+		inboundQoS2.remove(new Integer(messageId));
 	}
 	
 	/**

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2014 IBM Corp.
+ * Copyright (c) 2009, 2015 IBM Corp.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -13,7 +13,11 @@
  * Contributors:
  *    Dave Locke - initial API and implementation and/or initial documentation
  *    Ian Craggs - MQTT 3.1.1 support
+ *    Ian Craggs - per subscription message handlers (bug 466579)
+ *    Ian Craggs - ack control (bug 472172)
+ *    James Sutton - Bug 459142 - WebSocket support for the Java client.
  */
+
 package org.eclipse.paho.client.mqttv3;
 
 import java.util.Hashtable;
@@ -30,6 +34,8 @@ import org.eclipse.paho.client.mqttv3.internal.NetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.SSLNetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.TCPNetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.security.SSLSocketFactoryFactory;
+import org.eclipse.paho.client.mqttv3.internal.websocket.WebSocketSecureNetworkModule;
+import org.eclipse.paho.client.mqttv3.internal.websocket.WebSocketNetworkModule;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttDisconnect;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttPublish;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttSubscribe;
@@ -402,6 +408,47 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 				}
 			}
 			break;
+		case MqttConnectOptions.URI_TYPE_WS:
+			shortAddress = address.substring(5);
+			host = getHostName(shortAddress);
+			port = getPort(shortAddress, 80);
+			if (factory == null) {
+				factory = SocketFactory.getDefault();
+			}
+			else if (factory instanceof SSLSocketFactory) {
+				throw ExceptionHelper.createMqttException(MqttException.REASON_CODE_SOCKET_FACTORY_MISMATCH);
+			}
+			netModule = new WebSocketNetworkModule(factory, host, port, clientId);
+			((WebSocketNetworkModule)netModule).setConnectTimeout(options.getConnectionTimeout());
+			break;
+		case MqttConnectOptions.URI_TYPE_WSS:
+			shortAddress = address.substring(6);
+			host = getHostName(shortAddress);
+			port = getPort(shortAddress, 443);
+			SSLSocketFactoryFactory wSSFactoryFactory = null;
+			if (factory == null) {
+				wSSFactoryFactory = new SSLSocketFactoryFactory();
+					Properties sslClientProps = options.getSSLProperties();
+					if (null != sslClientProps)
+						wSSFactoryFactory.initialize(sslClientProps, null);
+					factory = wSSFactoryFactory.createSocketFactory(null);
+
+			}
+			else if ((factory instanceof SSLSocketFactory) == false) {
+				throw ExceptionHelper.createMqttException(MqttException.REASON_CODE_SOCKET_FACTORY_MISMATCH);
+			}
+
+			// Create the network module...	
+			netModule = new WebSocketSecureNetworkModule((SSLSocketFactory) factory, host, port, clientId);
+			((WebSocketSecureNetworkModule)netModule).setSSLhandshakeTimeout(options.getConnectionTimeout());
+			// Ciphers suites need to be set, if they are available
+			if (wSSFactoryFactory != null) {
+				String[] enabledCiphers = wSSFactoryFactory.getEnabledCipherSuites(null);
+				if (enabledCiphers != null) {
+					((SSLNetworkModule) netModule).setEnabledCiphers(enabledCiphers);
+				}
+			}
+			break;
 		case MqttConnectOptions.URI_TYPE_LOCAL :
 			netModule = new LocalNetworkModule(address.substring(8));
 			break;
@@ -590,6 +637,21 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 	public String getServerURI() {
 		return serverURI;
 	}
+	
+	/**
+	 * Returns the currently connected Server URI
+	 * Implemented due to: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481097
+	 * 
+	 * Where getServerURI only returns the URI that was provided in
+	 * MqttAsyncClient's constructor, getCurrentServerURI returns the URI of the
+	 * Server that the client is currently connected to. This would be different in scenarios
+	 * where multiple server URIs have been provided to the MqttConnectOptions.
+	 * 
+	 * @return the currently connected server URI
+	 */
+	public String getCurrentServerURI(){
+		return comms.getNetworkModules()[comms.getNetworkModuleIndex()].getServerURI();
+	}
 
 	/**
 	 * Get a topic object which can be used to publish messages.
@@ -665,8 +727,7 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 		
 		return token;
 	}
-	
-	
+		
 	/* (non-Javadoc)
 	 * @see org.eclipse.paho.client.mqttv3.IMqttAsyncClient#subscribe(java.lang.String, int, java.lang.Object, org.eclipse.paho.client.mqttv3.IMqttActionListener)
 	 */
@@ -687,7 +748,7 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 	public IMqttToken subscribe(String[] topicFilters, int[] qos) throws MqttException {
 		return this.subscribe(topicFilters, qos, null, null);
 	}
-
+	
 	/* (non-Javadoc)
 	 * @see org.eclipse.paho.client.mqttv3.IMqttAsyncClient#subscribe(java.lang.String[], int[], java.lang.Object, org.eclipse.paho.client.mqttv3.IMqttActionListener)
 	 */
@@ -696,6 +757,11 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 
 		if (topicFilters.length != qos.length) {
 			throw new IllegalArgumentException();
+		}
+		
+		// remove any message handlers for individual topics 
+		for (int i = 0; i < topicFilters.length; ++i) {
+			this.comms.removeMessageListener(topicFilters[i]);
 		}
 		
 		String subs = "";
@@ -722,6 +788,44 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 		//@TRACE 109=<
 		log.fine(CLASS_NAME,methodName,"109");
 
+		return token;
+	}
+	
+	/* (non-Javadoc)
+	 * @see org.eclipse.paho.client.mqttv3.IMqttAsyncClient#subscribe(java.lang.String, int, java.lang.Object, org.eclipse.paho.client.mqttv3.IMqttActionListener)
+	 */
+	public IMqttToken subscribe(String topicFilter, int qos, Object userContext, IMqttActionListener callback, IMqttMessageListener messageListener) throws MqttException {
+		
+		return this.subscribe(new String[] {topicFilter}, new int[] {qos}, userContext, callback, new IMqttMessageListener[] {messageListener});
+	}
+
+	/* (non-Javadoc)
+	 * @see org.eclipse.paho.client.mqttv3.IMqttAsyncClient#subscribe(java.lang.String, int)
+	 */
+	public IMqttToken subscribe(String topicFilter, int qos, IMqttMessageListener messageListener) throws MqttException {
+		return this.subscribe(new String[] {topicFilter}, new int[] {qos}, null, null,  new IMqttMessageListener[] {messageListener});
+	}
+
+	/* (non-Javadoc)
+	 * @see org.eclipse.paho.client.mqttv3.IMqttAsyncClient#subscribe(java.lang.String[], int[])
+	 */
+	public IMqttToken subscribe(String[] topicFilters, int[] qos, IMqttMessageListener[] messageListeners) throws MqttException {
+		return this.subscribe(topicFilters, qos, null, null, messageListeners);
+	}
+	
+	public IMqttToken subscribe(String[] topicFilters, int[] qos, Object userContext, IMqttActionListener callback, IMqttMessageListener[] messageListeners) throws MqttException {
+		
+		if ((messageListeners.length != qos.length) || (qos.length != topicFilters.length)) {
+			throw new IllegalArgumentException();
+		}
+		
+		IMqttToken token = this.subscribe(topicFilters, qos, userContext, callback);
+		
+		// add message handlers to the list for this client
+		for (int i = 0; i < topicFilters.length; ++i) {
+			this.comms.setMessageListener(topicFilters[i], messageListeners[i]);
+		}
+		
 		return token;
 	}
 
@@ -767,6 +871,11 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 		
 		//@TRACE 107=Unsubscribe topic={0} userContext={1} callback={2}
 		log.fine(CLASS_NAME, methodName,"107",new Object[]{subs, userContext, callback});
+		
+		// remove message handlers from the list for this client
+		for (int i = 0; i < topicFilters.length; ++i) {
+			this.comms.removeMessageListener(topicFilters[i]);
+		}
 
 		MqttToken token = new MqttToken(getClientId());
 		token.setActionCallback(callback);
@@ -787,6 +896,17 @@ public class MqttAsyncClient implements IMqttAsyncClient { // DestinationProvide
 	 */
 	public void setCallback(MqttCallback callback) {
 		comms.setCallback(callback);
+	}
+	
+	/* (non-Javadoc)
+	 * @see IMqttAsyncClient#setManualAcks(manualAcks)
+	 */
+	public void setManualAcks(boolean manualAcks) {
+		comms.setManualAcks(manualAcks);
+	}
+	
+	public void messageArrivedComplete(int messageId, int qos) throws MqttException {
+		comms.messageArrivedComplete(messageId, qos);
 	}
 
 	/**

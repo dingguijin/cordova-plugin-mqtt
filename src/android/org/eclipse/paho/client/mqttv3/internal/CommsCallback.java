@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009, 2014 IBM Corp.
+ * Copyright (c) 2009, 2015 IBM Corp.
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -12,16 +12,23 @@
  *
  * Contributors:
  *    Dave Locke - initial API and implementation and/or initial documentation
+ *    Ian Craggs - per subscription message handlers (bug 466579)
+ *    Ian Craggs - ack control (bug 472172)    
  */
 package org.eclipse.paho.client.mqttv3.internal;
 
+import java.util.Enumeration;
+import java.util.Hashtable;
 import java.util.Vector;
 
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.MqttToken;
+import org.eclipse.paho.client.mqttv3.MqttTopic;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttPubAck;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttPubComp;
 import org.eclipse.paho.client.mqttv3.internal.wire.MqttPublish;
@@ -39,6 +46,7 @@ public class CommsCallback implements Runnable {
 
 	private static final int INBOUND_QUEUE_SIZE = 10;
 	private MqttCallback mqttCallback;
+	private Hashtable callbacks; // topicFilter -> messageHandler
 	private ClientComms clientComms;
 	private Vector messageQueue;
 	private Vector completeQueue;
@@ -49,11 +57,13 @@ public class CommsCallback implements Runnable {
 	private Object workAvailable = new Object();
 	private Object spaceAvailable = new Object();
 	private ClientState clientState;
+	private boolean manualAcks = false;
 
 	CommsCallback(ClientComms clientComms) {
 		this.clientComms = clientComms;
 		this.messageQueue = new Vector(INBOUND_QUEUE_SIZE);
 		this.completeQueue = new Vector(INBOUND_QUEUE_SIZE);
+		this.callbacks = new Hashtable();
 		log.setResourceName(clientComms.getClient().getClientId());
 	}
 
@@ -67,7 +77,7 @@ public class CommsCallback implements Runnable {
 	public void start(String threadName) {
 		synchronized (lifecycle) {
 			if (!running) {
-				// Praparatory work before starting the background thread.
+				// Preparatory work before starting the background thread.
 				// For safety ensure any old events are cleared.
 				messageQueue.clear();
 				completeQueue.clear();
@@ -113,6 +123,10 @@ public class CommsCallback implements Runnable {
 
 	public void setCallback(MqttCallback mqttCallback) {
 		this.mqttCallback = mqttCallback;
+	}
+	
+	public void setManualAcks(boolean manualAcks) {
+		this.manualAcks = manualAcks;
 	}
 
 	public void run() {
@@ -194,6 +208,12 @@ public class CommsCallback implements Runnable {
 		synchronized (token) {
 			// @TRACE 705=callback and notify for key={0}
 			log.fine(CLASS_NAME, methodName, "705",	new Object[] { token.internalTok.getKey() });
+			if (token.isComplete()) {
+				// Finish by doing any post processing such as delete 
+				// from persistent store but only do so if the action
+				// is complete
+				clientState.notifyComplete(token);
+			}
 			
 			// Unblock any waiters and if pending complete now set completed
 			token.internalTok.notifyComplete();
@@ -218,12 +238,7 @@ public class CommsCallback implements Runnable {
  			}
 			
 
-			if (token.isComplete()) {
-				// Finish by doing any post processing such as delete 
-				// from persistent store but only do so if the action
-				// is complete
-				clientState.notifyComplete(token);
-			}
+			
 		}
 	}
 
@@ -291,7 +306,7 @@ public class CommsCallback implements Runnable {
 	 */
 	public void messageArrived(MqttPublish sendMessage) {
 		final String methodName = "messageArrived";
-		if (mqttCallback != null) {
+		if (mqttCallback != null || callbacks.size() > 0) {
 			// If we already have enough messages queued up in memory, wait
 			// until some more queue space becomes available. This helps 
 			// the client protect itself from getting flooded by messages 
@@ -344,22 +359,39 @@ public class CommsCallback implements Runnable {
 	private void handleMessage(MqttPublish publishMessage)
 			throws MqttException, Exception {
 		final String methodName = "handleMessage";
-		// If quisecing process any pending messages. 
-		if (mqttCallback != null) {
-			String destName = publishMessage.getTopicName();
+		// If quisecing process any pending messages.
 
-			// @TRACE 713=call messageArrived key={0} topic={1}
-			log.fine(CLASS_NAME, methodName, "713", new Object[] { 
-					new Integer(publishMessage.getMessageId()), destName });
-			mqttCallback.messageArrived(destName, publishMessage.getMessage());
+		String destName = publishMessage.getTopicName();
+
+		// @TRACE 713=call messageArrived key={0} topic={1}
+		log.fine(CLASS_NAME, methodName, "713", new Object[] {
+				new Integer(publishMessage.getMessageId()), destName });
+		deliverMessage(destName, publishMessage.getMessageId(),
+				publishMessage.getMessage());
+
+		if (!this.manualAcks) {
 			if (publishMessage.getMessage().getQos() == 1) {
 				this.clientComms.internalSend(new MqttPubAck(publishMessage),
 						new MqttToken(clientComms.getClient().getClientId()));
 			} else if (publishMessage.getMessage().getQos() == 2) {
 				this.clientComms.deliveryComplete(publishMessage);
 				MqttPubComp pubComp = new MqttPubComp(publishMessage);
-				this.clientComms.internalSend(pubComp, new MqttToken(clientComms.getClient().getClientId()));
+				this.clientComms.internalSend(pubComp, new MqttToken(
+						clientComms.getClient().getClientId()));
 			}
+		}
+	}
+	
+	public void messageArrivedComplete(int messageId, int qos) 
+		throws MqttException {
+		if (qos == 1) {
+			this.clientComms.internalSend(new MqttPubAck(messageId),
+					new MqttToken(clientComms.getClient().getClientId()));
+		} else if (qos == 2) {
+			this.clientComms.deliveryComplete(messageId);
+			MqttPubComp pubComp = new MqttPubComp(messageId);
+			this.clientComms.internalSend(pubComp, new MqttToken(
+					clientComms.getClient().getClientId()));
 		}
 	}
 
@@ -397,4 +429,44 @@ public class CommsCallback implements Runnable {
 	protected Thread getThread() {
 		return callbackThread;
 	}
+
+
+	public void setMessageListener(String topicFilter, IMqttMessageListener messageListener) {
+		this.callbacks.put(topicFilter, messageListener);
+	}
+	
+	
+	public void removeMessageListener(String topicFilter) {
+		this.callbacks.remove(topicFilter); // no exception thrown if the filter was not present
+	}
+	
+	public void removeMessageListeners() {
+		this.callbacks.clear(); 
+	}
+	
+	
+	protected boolean deliverMessage(String topicName, int messageId, MqttMessage aMessage) throws Exception
+	{		
+		boolean delivered = false;
+		
+		Enumeration keys = callbacks.keys();
+		while (keys.hasMoreElements()) {
+			String topicFilter = (String)keys.nextElement();
+			if (MqttTopic.isMatched(topicFilter, topicName)) {
+				aMessage.setId(messageId);
+				((IMqttMessageListener)(callbacks.get(topicFilter))).messageArrived(topicName, aMessage);
+				delivered = true;
+			}
+		}
+		
+		/* if the message hasn't been delivered to a per subscription handler, give it to the default handler */
+		if (mqttCallback != null && !delivered) {
+			aMessage.setId(messageId);
+			mqttCallback.messageArrived(topicName, aMessage);
+			delivered = true;
+		}
+		
+		return delivered;
+	}
+
 }

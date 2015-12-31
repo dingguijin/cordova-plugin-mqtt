@@ -24,15 +24,10 @@ public class MqttClient {
 
 	/** status **/
 	private enum Status {
-
 		CONNECTING,
-
 		CONNECTED,
-
 		DISCONNECTING,
-
 		DISCONNECTED,
-
 	}
 
 	/** current status **/
@@ -101,7 +96,7 @@ public class MqttClient {
 	}
 
 	public MqttClient(Context ctx, MqttConnectConfig config,
-			MqttListener listener) {
+                      MqttListener listener) {
 		context = ctx;
 		mStatus = Status.DISCONNECTED;
 		this.mConfig = config;
@@ -154,7 +149,7 @@ public class MqttClient {
 	 * @param listener
 	 */
 	private void safeConnect(final MqttConnectConfig config,
-			MqttListener listener) {
+                             MqttListener listener) {
 		storeClient();
 		startPushService();
 
@@ -201,10 +196,10 @@ public class MqttClient {
 	 */
 	private boolean isQuit(Context context) {
 		SharedPreferences sharedPref = context.getSharedPreferences(
-				MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
+                                                                    MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
 		boolean exit = sharedPref.getBoolean(
-				MqttPluginConstants.CLIENT_CONFIG_EXIT, false);
-//		MqttPlugin.debug(this.getClass(), "user fully leave our app : " + exit);
+                                             MqttPluginConstants.CLIENT_CONFIG_EXIT, false);
+        //		MqttPlugin.debug(this.getClass(), "user fully leave our app : " + exit);
 		return exit;
 	}
 
@@ -226,9 +221,9 @@ public class MqttClient {
 	 * @param listener
 	 */
 	public void disconnect(boolean stopPushService, boolean fullyExit,
-			final DisconnectListener listener) {
-//		MqttPlugin.debug(this.getClass(), String.format("disconnect %s.",
-//				(mConfig != null ? mConfig.toString() : "unknown host")));
+                           final DisconnectListener listener) {
+        //		MqttPlugin.debug(this.getClass(), String.format("disconnect %s.",
+        //				(mConfig != null ? mConfig.toString() : "unknown host")));
 
 		publishStatus(Status.DISCONNECTING);
 
@@ -236,28 +231,28 @@ public class MqttClient {
 			try {
 				client.disconnect(null, new IMqttActionListener() {
 
-					@Override
-					public void onSuccess(IMqttToken asyncActionToken) {
-						publishStatus(Status.DISCONNECTED);
-						if (listener != null) {
-							listener.onDisconnectFinish();
-						}
-					}
+                        @Override
+                        public void onSuccess(IMqttToken asyncActionToken) {
+                            publishStatus(Status.DISCONNECTED);
+                            if (listener != null) {
+                                listener.onDisconnectFinish();
+                            }
+                        }
 
-					@Override
-					public void onFailure(IMqttToken asyncActionToken,
-							Throwable exception) {
-						publishStatus(Status.DISCONNECTED);
-						if (listener != null) {
-							listener.onDisconnectFinish();
-						}
-					}
+                        @Override
+                        public void onFailure(IMqttToken asyncActionToken,
+                                              Throwable exception) {
+                            publishStatus(Status.DISCONNECTED);
+                            if (listener != null) {
+                                listener.onDisconnectFinish();
+                            }
+                        }
 
-				});
+                    });
 			} catch (MqttException e) {
 				e.printStackTrace();
 				MqttPlugin.debug(this.getClass(), "disconnect mqtt exception: "
-						+ e.toString());
+                                 + e.toString());
 			}
 		}
 
@@ -298,30 +293,30 @@ public class MqttClient {
 	 */
 	private void storeClient() {
 		SharedPreferences sharedPref = context.getSharedPreferences(
-				MqttPluginConstants.MQTT_PREF_NAME, Context.MODE_PRIVATE);
+                                                                    MqttPluginConstants.MQTT_PREF_NAME, Context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = sharedPref.edit();
 
 		editor.putString(MqttPluginConstants.MQTT_CONFIG_HOST,
-				mConfig.getHost());
+                         mConfig.getHost());
 		editor.putString(MqttPluginConstants.MQTT_CONFIG_DEVICE_UUID,
-				mConfig.getDeviceUuid());
+                         mConfig.getDeviceUuid());
 		editor.putInt(MqttPluginConstants.MQTT_CONFIG_TIMEOUT,
-				mConfig.getTimeout());
+                      mConfig.getTimeout());
 		editor.putInt(MqttPluginConstants.MQTT_CONFIG_KEEP_ALIVE_INTERVAL,
-				mConfig.getKeepAliveInterval());
+                      mConfig.getKeepAliveInterval());
 		editor.putString(MqttPluginConstants.MQTT_CONFIG_USER_NAME,
-				mConfig.getUserName());
+                         mConfig.getUserName());
 		editor.putString(MqttPluginConstants.MQTT_CONFIG_PASSWORD,
-				mConfig.getPassword());
+                         mConfig.getPassword());
 		editor.putString(MqttPluginConstants.MQTT_CONFIG_NOTIFICATION_TITLE,
-				mConfig.getNotificationTitle());
+                         mConfig.getNotificationTitle());
 
 		editor.commit();
 
 		context.getSharedPreferences(MqttPluginConstants.CLIENT_PREF_NAME,
-				Context.MODE_PRIVATE).edit()
-				.putBoolean(MqttPluginConstants.CLIENT_CONFIG_EXIT, false)
-				.commit();
+                                     Context.MODE_PRIVATE).edit()
+            .putBoolean(MqttPluginConstants.CLIENT_CONFIG_EXIT, false)
+            .commit();
 	}
 
 	/**
@@ -330,10 +325,10 @@ public class MqttClient {
 	 */
 	private void fullyExit() {
 		SharedPreferences sharedPref = context.getSharedPreferences(
-				MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
+                                                                    MqttPluginConstants.CLIENT_PREF_NAME, Context.MODE_PRIVATE);
 		sharedPref.edit()
-				.putBoolean(MqttPluginConstants.CLIENT_CONFIG_EXIT, true)
-				.commit();
+            .putBoolean(MqttPluginConstants.CLIENT_CONFIG_EXIT, true)
+            .commit();
 	}
 
 	/**
@@ -346,44 +341,43 @@ public class MqttClient {
 	 */
 	private MqttAndroidClient findClient() {
 		if (client == null) {
-			client = new MqttAndroidClient(context, mConfig.getHost(),
-					mConfig.getDeviceUuid());
+			client = new MqttAndroidClient(context, mConfig.getHost(), mConfig.getDeviceUuid());
 
 			client.setCallback(new MqttCallback() {
+                    
+                    @Override
+                    public void connectionLost(Throwable cause) {
+                        MqttPlugin.debug(
+                                         MqttServiceManager.class,
+                                         "connectionLost:"
+                                         + (cause != null ? cause.toString()
+                                            : "unknown reason"));
+                        if (cause != null) {
+                            onConnectFailure("connectionLost", cause, true);
+                        }
+                    }
 
-				@Override
-				public void connectionLost(Throwable cause) {
-					MqttPlugin.debug(
-							MqttServiceManager.class,
-							"connectionLost:"
-									+ (cause != null ? cause.toString()
-											: "unknown reason"));
-					if (cause != null) {
-						onConnectFailure("connectionLost", cause, true);
-					}
-				}
+                    @Override
+                    public void messageArrived(String topic, MqttMessage message)
+                        throws Exception {
+                        MqttPlugin.debug(MqttServiceManager.class,
+                                         "messageArrived:" + message.toString());
 
-				@Override
-				public void messageArrived(String topic, MqttMessage message)
-						throws Exception {
-					MqttPlugin.debug(MqttServiceManager.class,
-							"messageArrived:" + message.toString());
+                        if (!interceptMessage(mConfig)) {
+                            if (mListener != null) {
+                                mListener.onMessageArrived(message);
+                            }
+                        }
 
-					if (!interceptMessage(mConfig)) {
-						if (mListener != null) {
-							mListener.onMessageArrived(message);
-						}
-					}
+                    }
 
-				}
+                    @Override
+                    public void deliveryComplete(IMqttDeliveryToken token) {
+                        MqttPlugin.debug(MqttClient.this.getClass(),
+                                         "deliveryComplete");
+                    }
 
-				@Override
-				public void deliveryComplete(IMqttDeliveryToken token) {
-					MqttPlugin.debug(MqttClient.this.getClass(),
-							"deliveryComplete");
-				}
-
-			});
+                });
 		}
 
 		return client;
@@ -398,19 +392,19 @@ public class MqttClient {
 	 * @param mListener
 	 */
 	private void connect(final MqttAndroidClient client,
-			final MqttConnectOptions conOpt) {
+                         final MqttConnectOptions conOpt) {
 		try {
 			publishStatus(Status.CONNECTING);
-			
+            
 			MqttPlugin.debug(this.getClass(),
-					String.format("client connect %s, times:%d.", mConfig.toString(), ++connectTimes));
+                             String.format("client connect %s, times:%d.", mConfig.toString(), ++connectTimes));
 			
 			client.connect(conOpt, null,
-					((ConnectActionListener)getConnectActionListener(mConfig, mListener)).setDebugId("debugId:" + connectTimes));
+                           ((ConnectActionListener)getConnectActionListener(mConfig, mListener)).setDebugId("debugId:" + connectTimes));
 		} catch (MqttException e) {
 			e.printStackTrace();
 			MqttPlugin.debug(this.getClass(),
-					"mqtt connect exception : " + e.toString());
+                             "mqtt connect exception : " + e.toString());
 			onConnectFailure("A", e, false);
 		}
 	}
@@ -421,17 +415,17 @@ public class MqttClient {
 	 */
 	private void onConnectFailure(String callFrom, final Throwable e, final boolean disconnect) {
 		MqttPlugin.debug(this.getClass(),
-				"onConnectFailure----->callFrom----->" + callFrom);
+                         "onConnectFailure----->callFrom----->" + callFrom);
 		if (disconnect) {
 			disconnect(false, false, new DisconnectListener() {
-				@Override
-				public void onDisconnectFinish() {
-					if (mListener != null) {
-						mListener.onConnectFailure(e);
-					}
-					tryToReconnect();
-				}
-			});
+                    @Override
+                    public void onDisconnectFinish() {
+                        if (mListener != null) {
+                            mListener.onConnectFailure(e);
+                        }
+                        tryToReconnect();
+                    }
+                });
 		} else {
 			publishStatus(Status.DISCONNECTED);
 			if (mListener != null) {
@@ -468,7 +462,7 @@ public class MqttClient {
 
 		if (mHandler != null && mReconnectTask != null) {
 			mHandler.postDelayed(mReconnectTask,
-					mReconnectTask.getNextReconnectSleepTime());
+                                 mReconnectTask.getNextReconnectSleepTime());
 		}
 	}
 
@@ -531,45 +525,43 @@ public class MqttClient {
 	private boolean interceptMessage(MqttConnectConfig config) {
 		if (MqttPluginUtils.isInBackground(context)) {
 			MqttPlugin.debug(this.getClass(),
-					"Our app is running in background.");
+                             "Our app is running in background.");
 
 			if (notificationOpenActivity == null) {
 				notificationOpenActivity = MqttPluginUtils
-						.getNotificationOpenActivityClass(context);
+                    .getNotificationOpenActivityClass(context);
 			}
 
 			if (notificationSmallIcon == 0) {
 				notificationSmallIcon = MqttPluginUtils
-						.getNotificationIcon(context);
+                    .getNotificationIcon(context);
 			}
 
 			if (notificationOpenActivity != null && notificationSmallIcon > 0) {
 				MqttPluginUtils.showNotification(context,
-						config.getNotificationTitle(),
-						"You have unread messages.", notificationSmallIcon,
-						notificationOpenActivity);
+                                                 config.getNotificationTitle(),
+                                                 "You have unread messages.", notificationSmallIcon,
+                                                 notificationOpenActivity);
 			} else {
 				MqttPlugin
-						.debug(this.getClass(),
-								"get notificationOpenActivity error or get notificationSmallIcon error.");
+                    .debug(this.getClass(),
+                           "get notificationOpenActivity error or get notificationSmallIcon error.");
 			}
 
 			return true;
 		}
 
 		MqttPlugin.debug(this.getClass(),
-				"Our app is not running in background.");
+                         "Our app is not running in background.");
 		return false;
 	}
 
 	/** get the single connect action listener **/
-	private IMqttActionListener getConnectActionListener(
-			MqttConnectConfig config, MqttListener listener) {
+	private IMqttActionListener getConnectActionListener(MqttConnectConfig config, MqttListener listener) {
 		if (mConnectActionListener == null) {
 			mConnectActionListener = new ConnectActionListener(config, listener);
 		} else {
-			mConnectActionListener.setConnectConfig(config).setListener(
-					listener);
+			mConnectActionListener.setConnectConfig(config).setListener(listener);
 		}
 
 		return mConnectActionListener;
@@ -583,7 +575,7 @@ public class MqttClient {
 		private String debugId;
 
 		public ConnectActionListener(MqttConnectConfig config,
-				MqttListener listener) {
+                                     MqttListener listener) {
 			this.config = config;
 			this.listener = listener;
 		}
@@ -608,42 +600,42 @@ public class MqttClient {
 		@Override
 		public void onSuccess(IMqttToken asyncActionToken) {
 			MqttPlugin.debug(MqttServiceManager.class,
-					"mqtt connect onSuccess : " + debugId);
+                             "mqtt connect onSuccess : " + debugId);
 			try {
 				final String token = config.getUserName() + "/"
-						+ config.getDeviceUuid() + "/#";
+                    + config.getDeviceUuid() + "/#";
 
 				client.subscribe(token, MqttPluginConstants.MQTT_QOS, null,
-						new IMqttActionListener() {
-							@Override
-							public void onSuccess(IMqttToken asyncActionToken) {
-								MqttPlugin.debug(MqttServiceManager.class,
-										"mqtt subscribe success, topic: "
-												+ token);
+                                 new IMqttActionListener() {
+                                     @Override
+                                     public void onSuccess(IMqttToken asyncActionToken) {
+                                         MqttPlugin.debug(MqttServiceManager.class,
+                                                          "mqtt subscribe success, topic: "
+                                                          + token);
 
-								publishStatus(Status.CONNECTED);
-								interceptConnectSuccedEvent();
+                                         publishStatus(Status.CONNECTED);
+                                         interceptConnectSuccedEvent();
 
-								if (listener != null) {
-									listener.onConnectSucc();
-								}
-							}
+                                         if (listener != null) {
+                                             listener.onConnectSucc();
+                                         }
+                                     }
 
-							@Override
-							public void onFailure(IMqttToken asyncActionToken,
-									Throwable exception) {
-//								MqttPlugin.debug(
-//										MqttServiceManager.class,
-//										"mqtt subscribe failure : "
-//												+ exception.toString());
+                                     @Override
+                                     public void onFailure(IMqttToken asyncActionToken,
+                                                           Throwable exception) {
+                                         //								MqttPlugin.debug(
+                                         //										MqttServiceManager.class,
+                                         //										"mqtt subscribe failure : "
+                                         //												+ exception.toString());
 
-								onConnectFailure("subscribe onFailure", exception, true);
-							}
-						});
+                                         onConnectFailure("subscribe onFailure", exception, true);
+                                     }
+                                 });
 			} catch (MqttException e) {
 				e.printStackTrace();
 				MqttPlugin.debug(MqttServiceManager.class,
-						"mqtt subscribe exception : " + e.toString());
+                                 "mqtt subscribe exception : " + e.toString());
 				onConnectFailure("subscribe Exception", e, true);
 			}
 		}
@@ -651,7 +643,7 @@ public class MqttClient {
 		@Override
 		public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
 			MqttPlugin.debug(MqttServiceManager.class,
-					"mqtt connect onFailure : " + exception.toString());
+                             "mqtt connect onFailure : " + exception.toString());
 			onConnectFailure("connect onFailure", exception, false);
 		}
 
@@ -666,8 +658,8 @@ public class MqttClient {
 		private int mNextReconnectSleepTime;
 		/** try to re-connect sleep time **/
 		final int MQTT_RETRY_CONNECT_SLEEP_TIME[] = { 8 * 1000, 16 * 1000,
-				32 * 1000, 64 * 1000, 128 * 1000, 256 * 1000, 512 * 1000,
-				1024 * 1000, 2048 * 1000, 4096 * 1000, };
+                                                      32 * 1000, 64 * 1000, 128 * 1000, 256 * 1000, 512 * 1000,
+                                                      1024 * 1000, 2048 * 1000, 4096 * 1000, };
 
 		public ReconnectTask() {
 			mNextReconnectSleepTime = MQTT_RETRY_CONNECT_SLEEP_TIME[mNextIndex];
@@ -676,8 +668,8 @@ public class MqttClient {
 		@Override
 		public void run() {
 			MqttPlugin.debug(this.getClass(), String.format(
-					"Try to reconnect , the last sleep time is %d.",
-					mNextReconnectSleepTime));
+                                                            "Try to reconnect , the last sleep time is %d.",
+                                                            mNextReconnectSleepTime));
 			connect(false);
 			setNextReconnectSleepTime();
 
@@ -688,7 +680,7 @@ public class MqttClient {
 
 		private void setNextReconnectSleepTime() {
 			mNextReconnectSleepTime = MQTT_RETRY_CONNECT_SLEEP_TIME[mNextIndex++
-					% MQTT_RETRY_CONNECT_SLEEP_TIME.length];
+                                                                    % MQTT_RETRY_CONNECT_SLEEP_TIME.length];
 		}
 
 		public int getNextReconnectSleepTime() {

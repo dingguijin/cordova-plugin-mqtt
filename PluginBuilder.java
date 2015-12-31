@@ -1,5 +1,3 @@
-package com.zk;
-
 import java.io.File;
 
 public class PluginBuilder {
@@ -12,7 +10,9 @@ public class PluginBuilder {
 				build(files[i], filePrefix + "/" + files[i].getName(),
 						dirPrefix + dirName);
 			} else {
-				print(filePrefix + "/" + files[i].getName(), dirPrefix);
+                if (files[i].getName().endsWith(".java") || files[i].getName().endsWith(".properties")) {
+				    print(filePrefix + "/" + files[i].getName(), dirPrefix);
+                }
 			}
 		}
 	}
@@ -22,8 +22,8 @@ public class PluginBuilder {
 	}
 	
 	public static void main(String args[]) {
-        //replact this by your plugin's code path
-        String path = "/Users/zhaokun/zk_dir/ionic-test/myApp/plugins/toast-plugin/src";
+        //replace this by your plugin's code path
+        String path = "/Users/dingguijin/Documents/cordova-plugin-mqtt/src";
 		build(new File(path), "src", "src");
 	}
 }
