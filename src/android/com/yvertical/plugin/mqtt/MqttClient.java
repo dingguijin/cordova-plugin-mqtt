@@ -542,7 +542,7 @@ public class MqttClient {
                 //                                  config.getNotificationTitle(),                                                 
                 //                                  "You have unread messages.", notificationSmallIcon,
                 //                                  notificationOpenActivity);
-                String msg = message1.toString();
+                String msg = message.toString();
                 String title = null;
                 try {
                     JSONObject json = new JSONObject(msg);
